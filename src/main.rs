@@ -1,9 +1,13 @@
 mod toolbar;
+mod playlist;
 
 extern crate gio;
 extern crate gtk;
+extern crate gdk_pixbuf;
+extern crate id3;
 
 use toolbar::MusicToolbar;
+use playlist::Playlist;
 
 use std::env;
 
@@ -14,16 +18,26 @@ use gtk::{
     WidgetExt,
     GtkWindowExt,
     ContainerExt,
-    SeparatorToolItem,
-    Toolbar,
-    ToolButton,
     ToolButtonExt,
 };
+
+use gtk::{
+    Adjustment,
+    Image,
+    ImageExt,
+    Scale,
+    ScaleExt,
+};
+
+use gtk::Orientation::{Horizontal, Vertical};
 
 const PLAY_STOCK: &str = "gtk-media-play";
 const PAUSE_STOCK: &str = "gtk-media-pause";
 
 struct App {
+    adjustment: Adjustment,
+    cover: Image,
+    playlist: Playlist,
     toolbar: MusicToolbar,
     window: ApplicationWindow,
 }
@@ -33,12 +47,30 @@ impl App {
         let window = ApplicationWindow::new(&application);
         window.set_title("Rusic");
 
+        let vbox = gtk::Box::new(Vertical, 0);
+        window.add(&vbox);
+
+        let playlist = Playlist::new();
+        vbox.add(playlist.view());
+
         let toolbar = MusicToolbar::new();
-        window.add(toolbar.toolbar());
+        vbox.add(toolbar.toolbar());
+
+        let cover = Image::new();
+        cover.set_from_file("/home/zero/Documents/cover.jpeg");
+        vbox.add(&cover);
+
+        let adjustment = Adjustment::new(0.0, 0.0, 10.0, 0.0, 0.0, 0.0);
+        let scale = Scale::new(Horizontal, &adjustment);
+        scale.set_draw_value(false);
+        vbox.add(&scale);
 
         window.show_all();
 
         let app = App {
+            adjustment,
+            cover,
+            playlist,
             toolbar,
             window,
         };
@@ -72,41 +104,9 @@ impl App {
 fn main() {
     let application = Application::new("com.zero.rusic", ApplicationFlags::empty())
         .expect("Application initialization failed");
+        
     application.connect_startup(|application| {
-        let window = ApplicationWindow::new(&application);
-        window.set_title("Rusic");
-
-        let toolbar = Toolbar::new();
-        window.add(&toolbar);
-
-        let open_button = ToolButton::new_from_stock("gtk-open");
-        toolbar.add(&open_button);
-
-        toolbar.add(&SeparatorToolItem::new());
-
-        let previous_button = ToolButton::new_from_stock("gtk-media-previous");
-        toolbar.add(&previous_button);
-
-        let play_button = ToolButton::new_from_stock(PLAY_STOCK);
-        toolbar.add(&play_button);
-
-        let stop_button = ToolButton::new_from_stock("gtk-media-stop");
-        toolbar.add(&stop_button);
-
-        let next_button = ToolButton::new_from_stock("gtk-media-next");
-        toolbar.add(&next_button);
-
-        toolbar.add(&SeparatorToolItem::new());
-
-        let remove_button = ToolButton::new_from_stock("gtk-remove");
-        toolbar.add(&remove_button);
-
-        toolbar.add(&SeparatorToolItem::new());
-
-        let quit_button = ToolButton::new_from_stock("gtk-quit");
-        toolbar.add(&quit_button);
-
-        window.show_all();
+        App::new(application.clone());
     });
 
     application.connect_activate(|_| {});
