@@ -1,21 +1,38 @@
+
 use gtk::{
+    ApplicationWindow,
     ContainerExt,
     SeparatorToolItem,
     Toolbar,
     ToolButton,
+    Image,
 };
 
+use gtk::{
+    ImageExt,
+};
+
+use crate::playlist::Playlist;
+
+use gtk::{FileChooserAction, FileChooserDialog, FileFilter};
+use gtk::{FileFilterExt, FileChooserExt, DialogExt, WidgetExt};
+use std::path::PathBuf;
+
+use gtk_sys::{GTK_RESPONSE_ACCEPT, GTK_RESPONSE_CANCEL};
+
 const PLAY_STOCK: &str = "gtk-media-play";
+const RESPONSE_ACCEPT: i32 = GTK_RESPONSE_ACCEPT as i32;
+const RESPONSE_CANCEL: i32 = GTK_RESPONSE_CANCEL as i32;
 
 pub struct MusicToolbar {
-    open_button: ToolButton,
-    next_button: ToolButton,
+    pub open_button: ToolButton,
+    pub next_button: ToolButton,
     pub play_button: ToolButton,
-    previous_button: ToolButton,
+    pub previous_button: ToolButton,
     pub quit_button: ToolButton,
-    remove_button: ToolButton,
-    stop_button: ToolButton,
-    toolbar: Toolbar,
+    pub remove_button: ToolButton,
+    pub stop_button: ToolButton,
+    pub toolbar: Toolbar,
 }
 
 impl MusicToolbar {
@@ -64,4 +81,30 @@ impl MusicToolbar {
     pub fn toolbar(&self) -> &Toolbar {
         &self.toolbar
     }
+}
+
+pub fn show_open_dialog(parent: &ApplicationWindow) -> Option<PathBuf> {
+    let mut file = None;
+
+    let dialog = FileChooserDialog::new(Some("Select an MP3 Audio file"), Some(parent), FileChooserAction::Open);
+    let filter = FileFilter::new();
+    filter.add_mime_type("audio/mp3");
+    filter.set_name("MP3 audio file");
+    dialog.add_filter(&filter);
+    dialog.add_button("Cancel", RESPONSE_CANCEL);
+    dialog.add_button("Accept", RESPONSE_ACCEPT);
+
+    let result = dialog.run();
+    if result == RESPONSE_ACCEPT {
+        file = dialog.get_filename();
+    }
+
+    dialog.destroy();
+    
+    file
+}
+
+pub fn set_cover(cover: &Image, playlist: &Playlist) {
+    cover.set_from_pixbuf(playlist.pixbuf().as_ref());
+    cover.show();
 }

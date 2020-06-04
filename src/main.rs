@@ -5,11 +5,13 @@ extern crate gio;
 extern crate gtk;
 extern crate gdk_pixbuf;
 extern crate id3;
+extern crate gtk_sys;
 
-use toolbar::MusicToolbar;
+use toolbar::{MusicToolbar, show_open_dialog};
 use playlist::Playlist;
 
 use std::env;
+use std::rc::Rc;
 
 use gio::{ApplicationExt, ApplicationExtManual, ApplicationFlags};
 use gtk::{
@@ -29,15 +31,19 @@ use gtk::{
     ScaleExt,
 };
 
+use crate::toolbar::set_cover;
+
 use gtk::Orientation::{Horizontal, Vertical};
+
 
 const PLAY_STOCK: &str = "gtk-media-play";
 const PAUSE_STOCK: &str = "gtk-media-pause";
 
+
 struct App {
     adjustment: Adjustment,
     cover: Image,
-    playlist: Playlist,
+    playlist: Rc<Playlist>,
     toolbar: MusicToolbar,
     window: ApplicationWindow,
 }
@@ -50,14 +56,13 @@ impl App {
         let vbox = gtk::Box::new(Vertical, 0);
         window.add(&vbox);
 
-        let playlist = Playlist::new();
-        vbox.add(playlist.view());
-
         let toolbar = MusicToolbar::new();
         vbox.add(toolbar.toolbar());
 
+        let playlist = Rc::new(Playlist::new());
+        vbox.add(playlist.view());
+
         let cover = Image::new();
-        cover.set_from_file("/home/zero/Documents/cover.jpeg");
         vbox.add(&cover);
 
         let adjustment = Adjustment::new(0.0, 0.0, 10.0, 0.0, 0.0, 0.0);
@@ -90,13 +95,31 @@ impl App {
             window.destroy();
         });
 
+        let playlist = self.playlist.clone();
+        let cover = self.cover.clone();
+
         let play_button = self.toolbar.play_button.clone();
         self.toolbar.play_button.connect_clicked( move |_| {
             if play_button.get_stock_id() == Some(PLAY_STOCK.to_string()) {
                 play_button.set_stock_id(PAUSE_STOCK);
+                set_cover(&cover, &playlist);
             } else {
                 play_button.set_stock_id(PLAY_STOCK);
             }
+        });
+
+        let parent = self.window.clone();
+        let playlist = self.playlist.clone();
+        self.toolbar.open_button.connect_clicked(move |_| {
+            let file = show_open_dialog(&parent);
+            if let Some(file) = file {
+                playlist.add(&file);
+            }
+        });
+
+        let playlist = self.playlist.clone();
+        self.toolbar.remove_button.connect_clicked(move |_| {
+            playlist.remove_selection();
         });
     }
 }

@@ -457,6 +457,7 @@ dependencies = [
  "gdk-pixbuf",
  "gio",
  "gtk",
+ "gtk-sys",
  "id3",
 ]
 
