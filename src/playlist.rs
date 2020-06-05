@@ -24,7 +24,12 @@ use gtk::{
 
 use id3::Tag;
 
+use crate::player::Player;
+use crate::player::State;
+
 use self::Visibility::*;
+
+use std::sync::{Arc, Mutex};
 
 #[derive(PartialEq)]
 enum Visibility {
@@ -48,11 +53,12 @@ const INTERP_HYPER: InterpType = 3;
 
 pub struct Playlist {
     model: ListStore,
+    player: Player,
     treeview: TreeView,
 }
 
 impl Playlist {
-    pub fn new() -> Self {
+    pub(crate) fn new(state: Arc<Mutex<State>>) -> Self {
         let model = ListStore::new(&[
             Pixbuf::static_type(),
             Type::String,
@@ -73,6 +79,7 @@ impl Playlist {
 
         Playlist{
             model,
+            player: Player::new(state.clone()),
             treeview,
         }
     }
@@ -174,6 +181,24 @@ impl Playlist {
             return value.get::<Pixbuf>();
         }
         None
+    }
+
+    fn selected_path(&self) -> Option<String> {
+        let selection = self.treeview.get_selection();
+        if let Some((_, iter)) = selection.get_selected() {
+            let value = self.model.get_value(&iter, PATH_COLUMN as i32);
+            return value.get::<String>();
+        }
+        None
+    }
+
+    pub fn play(&self) -> bool {
+        if let Some(path) = self.selected_path() {
+            self.player.load(&path);
+            true
+        } else {
+            false
+        }
     }
 }
 

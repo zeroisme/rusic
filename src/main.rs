@@ -1,17 +1,24 @@
 mod toolbar;
 mod playlist;
+mod mp3;
+mod player;
 
 extern crate gio;
 extern crate gtk;
 extern crate gdk_pixbuf;
 extern crate id3;
 extern crate gtk_sys;
+extern crate crossbeam;
+extern crate pulse_simple;
+extern crate simplemad;
 
 use toolbar::{MusicToolbar, show_open_dialog};
 use playlist::Playlist;
 
 use std::env;
 use std::rc::Rc;
+use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 use gio::{ApplicationExt, ApplicationExtManual, ApplicationFlags};
 use gtk::{
@@ -32,6 +39,7 @@ use gtk::{
 };
 
 use crate::toolbar::set_cover;
+use crate::player::State;
 
 use gtk::Orientation::{Horizontal, Vertical};
 
@@ -44,6 +52,7 @@ struct App {
     adjustment: Adjustment,
     cover: Image,
     playlist: Rc<Playlist>,
+    state: Arc<Mutex<State>>,
     toolbar: MusicToolbar,
     window: ApplicationWindow,
 }
@@ -59,7 +68,11 @@ impl App {
         let toolbar = MusicToolbar::new();
         vbox.add(toolbar.toolbar());
 
-        let playlist = Rc::new(Playlist::new());
+        let state = Arc::new(Mutex::new(State {
+            stopped: true,
+        }));
+
+        let playlist = Rc::new(Playlist::new(state.clone()));
         vbox.add(playlist.view());
 
         let cover = Image::new();
@@ -76,6 +89,7 @@ impl App {
             adjustment,
             cover,
             playlist,
+            state,
             toolbar,
             window,
         };
@@ -97,14 +111,24 @@ impl App {
 
         let playlist = self.playlist.clone();
         let cover = self.cover.clone();
+        let state = self.state.clone();
 
         let play_button = self.toolbar.play_button.clone();
         self.toolbar.play_button.connect_clicked( move |_| {
-            if play_button.get_stock_id() == Some(PLAY_STOCK.to_string()) {
-                play_button.set_stock_id(PAUSE_STOCK);
-                set_cover(&cover, &playlist);
-            } else {
-                play_button.set_stock_id(PLAY_STOCK);
+            // if play_button.get_stock_id() == Some(PLAY_STOCK.to_string()) {
+            //     play_button.set_stock_id(PAUSE_STOCK);
+            //     set_cover(&cover, &playlist);
+            // } else {
+            //     play_button.set_stock_id(PLAY_STOCK);
+            // }
+
+            if state.lock().unwrap().stopped {
+                if playlist.play() {
+                    play_button.set_stock_id(PAUSE_STOCK);
+                    set_cover(&cover, &playlist);
+                } else {
+                    play_button.set_stock_id(PLAY_STOCK);
+                }
             }
         });
 
@@ -122,6 +146,10 @@ impl App {
             playlist.remove_selection();
         });
     }
+}
+
+fn to_millis(duration: Duration) -> u64 {
+    duration.as_secs() * 1000 + duration.subsec_nanos() as u64 / 1_000_000
 }
 
 fn main() {
