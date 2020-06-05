@@ -58,7 +58,6 @@ impl Player {
                     if let Some(action) = event_loop.queue.try_pop() {
                         match action {
                             Load(path) => {
-
                                 println!("Load {:?}", path);
                                 let file = File::open(path).unwrap();
                                 source = Some(Mp3Decoder::new(BufReader::new(file)).unwrap());
