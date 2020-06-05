@@ -58,11 +58,14 @@ impl Player {
                     if let Some(action) = event_loop.queue.try_pop() {
                         match action {
                             Load(path) => {
+
+                                println!("Load {:?}", path);
                                 let file = File::open(path).unwrap();
                                 source = Some(Mp3Decoder::new(BufReader::new(file)).unwrap());
                                 let rate = source.as_ref().map(|source| source.sample_rate()).unwrap_or(DEFAULT_RATE);
                                 playback = Playback::new("MP3", "MP3 Playback", None, rate);
                                 app_state.lock().unwrap().stopped = false;
+                                *event_loop.playing.lock().unwrap() = true;
                             },
                             Stop => {},
                         }
@@ -93,11 +96,9 @@ impl Player {
     }
 
     pub fn load(&self, path: &String) {
-        let file = File::open(path).unwrap();
-        let source = Some(Mp3Decoder::new(BufReader::new(file)).unwrap());
-        let rate = source.as_ref().map(|source| source.sample_rate()).unwrap_or(DEFAULT_RATE);
-        let playback: Playback<[i16; 2]> = Playback::new("MP3", "MP3 Playback", None, rate);
-        self.app_state.lock().unwrap().stopped = false;
+        let mut file = PathBuf::new();
+        file.push(path);
+        self.event_loop.queue.push(Load(file));
     }
 }
 

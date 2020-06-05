@@ -194,7 +194,8 @@ impl Playlist {
 
     pub fn play(&self) -> bool {
         if let Some(path) = self.selected_path() {
-            self.player.load(&path);
+            // self.player.load(&path);
+            println!("Path: {:?}", path);
             true
         } else {
             false
