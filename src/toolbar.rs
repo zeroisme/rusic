@@ -31,6 +31,7 @@ pub struct MusicToolbar {
     pub previous_button: ToolButton,
     pub quit_button: ToolButton,
     pub remove_button: ToolButton,
+    pub save_button: ToolButton,
     pub stop_button: ToolButton,
     pub toolbar: Toolbar,
 }
@@ -40,6 +41,9 @@ impl MusicToolbar {
         let toolbar = Toolbar::new();
         let open_button = ToolButton::new_from_stock("gtk-open");
         toolbar.add(&open_button);
+
+        let save_button = ToolButton::new_from_stock("gtk-save");
+        toolbar.add(&save_button);
 
         toolbar.add(&SeparatorToolItem::new());
 
@@ -72,6 +76,7 @@ impl MusicToolbar {
             previous_button,
             quit_button,
             remove_button,
+            save_button,
             stop_button,
             toolbar,
 
@@ -91,6 +96,12 @@ pub fn show_open_dialog(parent: &ApplicationWindow) -> Option<PathBuf> {
     filter.add_mime_type("audio/mp3");
     filter.set_name("MP3 audio file");
     dialog.add_filter(&filter);
+
+    let m3u_filter = FileFilter::new();
+    m3u_filter.add_mime_type("audio/x-mpegurl");
+    m3u_filter.set_name("M3U playlist file");
+    dialog.add_filter(&m3u_filter);
+    
     dialog.add_button("Cancel", RESPONSE_CANCEL);
     dialog.add_button("Accept", RESPONSE_ACCEPT);
 
@@ -101,6 +112,25 @@ pub fn show_open_dialog(parent: &ApplicationWindow) -> Option<PathBuf> {
 
     dialog.destroy();
     
+    file
+}
+
+pub fn show_save_dialog(parent: &ApplicationWindow) -> Option<PathBuf> {
+    let mut file = None;
+    let dialog = FileChooserDialog::new(Some("Choose a destination M3U playlist file"), Some(parent), FileChooserAction::Save);
+    let filter = FileFilter::new();
+    filter.add_mime_type("audio/x-mpegurl");
+    filter.set_name("M3U playlist file");
+    dialog.set_do_overwrite_confirmation(true);
+    dialog.add_filter(&filter);
+    dialog.add_button("Cancel", RESPONSE_CANCEL);
+    dialog.add_button("Save", RESPONSE_ACCEPT);
+    let result = dialog.run();
+    if result == RESPONSE_ACCEPT {
+        file = dialog.get_filename();
+    }
+
+    dialog.destroy();
     file
 }
 

@@ -1,5 +1,9 @@
 use std::path::Path;
 
+use m3u;
+
+use std::fs::File;
+
 use gdk_pixbuf::{InterpType, Pixbuf, PixbufLoader};
 
 use gtk::{
@@ -22,11 +26,15 @@ use gtk::{
     WidgetExt,
 };
 
+use std::cell::RefCell;
+use std::cmp::max;
+use std::thread;
+use crate::to_millis;
+
 use id3::Tag;
 
 use crate::player::Player;
 use crate::player::State;
-
 use self::Visibility::*;
 
 use std::sync::{Arc, Mutex};
@@ -52,8 +60,10 @@ const INTERP_HYPER: InterpType = 3;
 
 
 pub struct Playlist {
+    current_song: RefCell<Option<String>>,
     model: ListStore,
     player: Player,
+    state: Arc<Mutex<State>>,
     treeview: TreeView,
 }
 
@@ -78,8 +88,10 @@ impl Playlist {
         Self::create_columns(&treeview);
 
         Playlist{
+            current_song: RefCell::new(None),
             model,
             player: Player::new(state.clone()),
+            state,
             treeview,
         }
     }
@@ -137,6 +149,7 @@ impl Playlist {
     }
 
     pub fn add(&self, path: &Path) {
+        self.compute_duration(path);
         let filename = path.file_stem().unwrap_or_default().to_str().unwrap_or_default();
         let row = self.model.append();
 
@@ -194,10 +207,105 @@ impl Playlist {
 
     pub fn play(&self) -> bool {
         if let Some(path) = self.selected_path() {
-            self.player.load(&path);
+            if self.player.is_paused() && Some(&path) == self.path().as_ref() {
+                self.player.resume();
+            } else {
+                self.player.load(&path);
+                *self.current_song.borrow_mut() = Some(path);
+                self.player.resume();
+            }
+
             true
         } else {
             false
+        }
+    }
+
+    pub fn pause(&self) {
+        self.player.pause();
+    }
+
+    pub fn path(&self) -> Option<String> {
+        self.current_song.borrow().clone()
+    }
+
+    pub fn stop(&self) {
+        *self.current_song.borrow_mut() = None;
+        self.player.stop();
+    }
+
+    pub fn next(&self) -> bool {
+        let selection = self.treeview.get_selection();
+        let next_iter = if let Some((_, iter)) = selection.get_selected() {
+            if ! self.model.iter_next(&iter) {
+                return false;
+            }
+            Some(iter)
+        } else {
+            self.model.get_iter_first()
+        };
+
+        if let Some(ref iter) = next_iter {
+            selection.select_iter(iter);
+            self.play();
+        }
+        next_iter.is_some()
+    }
+
+    pub fn previous(&self) -> bool {
+        let selection = self.treeview.get_selection();
+        let previous_iter = if let Some((_, iter)) = selection.get_selected() {
+            if ! self.model.iter_previous(&iter) {
+                return false;
+            }
+            Some(iter)
+        } else {
+            self.model.iter_nth_child(None, max(0, self.model.iter_n_children(None) - 1))
+        };
+
+        if let Some(ref iter) = previous_iter {
+            selection.select_iter(iter);
+            self.play();
+        }
+
+        previous_iter.is_some()
+    }
+
+    fn compute_duration(&self, path: &Path) {
+        let state = self.state.clone();
+        let path = path.to_string_lossy().to_string();
+        thread::spawn(move || {
+            if let Some(duration) = crate::player::compute_duration(&path) {
+                let mut state = state.lock().unwrap();
+                state.durations.insert(path, to_millis(duration));
+            }
+        });
+    }
+
+    pub fn save(&self, path: &Path) {
+        let mut file = File::create(path).unwrap();
+        let mut writer = m3u::Writer::new(&mut file);
+
+        let mut write_iter = |iter: &TreeIter| {
+            let value = self.model.get_value(&iter, PATH_COLUMN as i32);
+            let path = value.get::<String>().unwrap();
+            writer.write_entry(&m3u::path_entry(path)).unwrap();
+        };
+
+        if let Some(iter) = self.model.get_iter_first() {
+            write_iter(&iter);
+            while self.model.iter_next(&iter) {
+                write_iter(&iter);
+            }
+        }
+    }
+
+    pub fn load(&self, path: &Path) {
+        let mut reader = m3u::Reader::open(path).unwrap();
+        for entry in reader.entries() {
+            if let Ok(m3u::Entry::Path(path)) = entry {
+                self.add(&path);
+            }
         }
     }
 }
