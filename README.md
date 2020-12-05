@@ -1,2 +1,1 @@
-# rusic
-rust by example code
+# Rust by example music player rustic code
